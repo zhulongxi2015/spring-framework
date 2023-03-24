@@ -544,42 +544,67 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	@Override
 	public void refresh() throws BeansException, IllegalStateException {
 		synchronized (this.startupShutdownMonitor) {
-			StartupStep contextRefresh = this.applicationStartup.start("spring.context.refresh");
-
 			// Prepare this context for refreshing.
 			prepareRefresh();
 
-			// Tell the subclass to refresh the internal bean factory.
+			/*
+			 * 1.创建DefaultListableBeanFactory对象
+			 * 2.解析xml文件，根据bean的标签创建它们的BeanDefinition对象，并注册到BeanFactory的beanDefinitionMap对象中，并将bean的name放到BeanFactory的beanDefinitionNames中
+			 * 3.loadBeanDefintion()创建三大后置处理器PostProcessor的BeanDefinition对象，并注册到BeanFactory的beanDefinitionMap对象中，并将bean的name放到BeanFactory的beanDefinitionNames中
+			 *     3.1 ConfigurationClassPostProcessor
+			 *           实现了BeanDefinitionRegistryPostProcessor接口，
+			 *               BeanDefinitionRegistryPostProcessor又实现了BeanFactoryPostProcessor
+			 *     3.2 AutowiredAnnotationBeanPostProcessor
+			 *           实现了BeanPostProcessor接口
+			 *     3.3 CommonAnnotationBeanPostProcessor
+			 *           实现了BeanPostProcessor接口
+			 */
 			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
-			// Prepare the bean factory for use in this context.
+			// 给BeanFactory设置一些属性值， 不重要
 			prepareBeanFactory(beanFactory);
 
 			try {
-				// Allows post-processing of the bean factory in context subclasses.
+				// 给BeanFactory设置一些后置属性值，空方法
 				postProcessBeanFactory(beanFactory);
 
-				StartupStep beanPostProcess = this.applicationStartup.start("spring.context.beans.post-process");
-				// Invoke factory processors registered as beans in the context.
+				/*
+				 * 调用BeanFactoryPostProcessor的方法
+				 *     首先执行BeanDefinitionRegistryPostProcessor的postProcessBeandefinitionRegistry()方法
+				 *     然后执行其他BeanFactoryPostProcessor的postProcessBeanFactory()方法
+				*/
 				invokeBeanFactoryPostProcessors(beanFactory);
 
-				// Register bean processors that intercept bean creation.
+				/* 创建BeanPostPorcessor的bean实例对象到BeanFactory的beanPostProcessors集合中，是一个CopyOnWriteArrayList类型的集合
+                 *   就是前面注册了BeanDefinition的两个BeanPostProcessor：
+				 *       AutowiredAnnotationBeanPostProcessor和CommonAnnotationBeanPostProcessor
+				 */
 				registerBeanPostProcessors(beanFactory);
-				beanPostProcess.end();
 
-				// Initialize message source for this context.
+				// 国际化处理
 				initMessageSource();
 
-				// Initialize event multicaster for this context.
+				// 初始化事件管理器
 				initApplicationEventMulticaster();
 
-				// Initialize other special beans in specific context subclasses.
+				// 扩展方法，是个空方法
+				// springboot中tomcat的启动就是通过重写此方法
 				onRefresh();
 
-				// Check for listener beans and register them.
+				// 注册事件监听器
 				registerListeners();
 
-				// Instantiate all remaining (non-lazy-init) singletons.
+			    /* 重要 ！！！！
+				 * 剩余单例bean的实例化的入口（前面完成了BeanProcessor的bean的实例化，这里是单例bean的实例化，在容器启动时候进行实例化，多例bean是在使用的时候才实例化）
+				 * 根据前面加载好的BeanDefinition去实例化单例bean
+				 *   bean实例化过程
+				 *   ioc依赖注入DI
+				 *   注解支持
+				 *   BeanPostProcessor执行
+				 *   AOP入口(包含事务支持)
+				 *     
+				 *   
+				 */
 				finishBeanFactoryInitialization(beanFactory);
 
 				// Last step: publish corresponding event.
@@ -606,7 +631,6 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 				// Reset common introspection caches in Spring's core, since we
 				// might not ever need metadata for singleton beans anymore...
 				resetCommonCaches();
-				contextRefresh.end();
 			}
 		}
 	}
